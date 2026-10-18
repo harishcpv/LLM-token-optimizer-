@@ -1,37 +1,104 @@
 # Agent Token Optimizer
 
-A dependency-light toolkit and local Streamlit workspace for auditing the token footprint of agent code, prompts, and tool schemas. The project turns a pasted or uploaded agent context into a **Token Audit Report Card** with:
+> **Make every agent token earn its place.**
 
-- message, tool-schema, source-code, and total analyzed token estimates;
-- configurable one-turn pricing and deterministic multi-turn simulation;
-- duplicate and verbosity findings with source locations;
-- estimated savings recommendations and a downloadable JSON report; and
-- a CI-friendly `agent-token-audit` JSON CLI that shares the same calculation path as the UI.
+Agent Token Optimizer is a local-first developer tool for auditing the token
+footprint and projected cost of AI-agent code, prompts, tool schemas, and
+multi-turn loops. It provides both a polished Streamlit workspace and a
+deterministic JSON CLI for CI pipelines.
 
-The MVP is intentionally provider-neutral. It does not call an LLM, send uploaded content anywhere, or require provider SDKs.
+**Status:** MVP scaffold · **Runtime:** Python 3.11 · **Interface:** Streamlit + CLI
 
-## Architecture blueprint
+## What it delivers
 
-```text
-                         ┌─────────────────────────────┐
- pasted code/upload ───▶ │                             │
- prompt text/JSON ─────▶ │  app.py · Streamlit UI      │ ──▶ report card + JSON download
- tool JSON ────────────▶ │  validation + presentation  │
-                         └──────────────┬──────────────┘
-                                        │ shared orchestration
-                                        ▼
-                         ┌─────────────────────────────┐
-                         │ audit_cli.py                 │
-                         │ run_audit + AuditResult      │ ──▶ JSON CLI / CI
-                         └──────────────┬──────────────┘
-                                        ▼
-                 ┌─────────────────────────────────────────────┐
-                 │ src/agent_token_optimizer                   │
-                  │ models → parsing → token_counting            │
-                  │                         ├─ rules              │
-                  │                         ├─ code_rules          │
-                  │                         └─ simulation         │
-                 └─────────────────────────────────────────────┘
+- Token estimates for messages, tool schemas, source code, and total analyzed footprint.
+- Configurable one-turn pricing and deterministic multi-turn cost simulation.
+- Explicit tool-call/result overhead modeling for agent loops.
+- Static findings for duplicate context, verbose instructions, bloated schemas, and dynamic prompt prefixes that can defeat caching.
+- Actionable recommendations with locations, estimated savings, and downloadable JSON reports.
+- A shared audit pipeline so UI and CI results use the same parser, counter, simulator, and rules.
+
+The MVP is intentionally provider-neutral. It does not call an LLM, send
+uploaded content anywhere, or require provider SDKs.
+
+## Contents
+
+- [Architecture at a glance](#architecture-at-a-glance)
+- [Ingestion and tokenization design](#ingestion-and-tokenization-design)
+- [Setup](#setup)
+- [Run the UI](#run-the-ui)
+- [Run the CLI](#run-the-cli)
+- [Test and CI checks](#test-and-ci-checks)
+- [Container deployment](#container-deployment)
+- [MVP execution roadmap](#mvp-execution-roadmap)
+- [Known MVP gaps](#known-mvp-gaps)
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    U["Developer<br/>code / prompt / tools"]:::input
+
+    subgraph EXPERIENCE["Developer experience"]
+        UI["Streamlit workspace<br/>app.py"]:::surface
+        CLI["CI / local CLI<br/>agent-token-audit"]:::surface
+    end
+
+    subgraph PIPELINE["Shared deterministic audit pipeline"]
+        ORCH["run_audit<br/>AuditResult"]:::orchestrator
+        PARSE["Normalize inputs<br/>parsing.py"]:::core
+        COUNT["Count tokens<br/>tiktoken or fallback"]:::core
+        RULES["Analyze anti-patterns<br/>rules.py + code_rules.py"]:::analysis
+        SIM["Simulate turns and cost<br/>simulation.py"]:::analysis
+    end
+
+    subgraph OUTPUTS["Actionable outputs"]
+        REPORT["Token Audit Report Card<br/>findings + savings"]:::output
+        JSON["Versionable JSON<br/>CI artifact"]:::output
+    end
+
+    U --> UI
+    U --> CLI
+    UI --> ORCH
+    CLI --> ORCH
+    ORCH --> PARSE
+    PARSE --> COUNT
+    PARSE --> RULES
+    COUNT --> RULES
+    COUNT --> SIM
+    RULES --> REPORT
+    SIM --> REPORT
+    REPORT --> JSON
+
+    classDef input fill:#0f172a,stroke:#38bdf8,color:#f8fafc,stroke-width:2px;
+    classDef surface fill:#1d4ed8,stroke:#93c5fd,color:#eff6ff,stroke-width:2px;
+    classDef orchestrator fill:#7c3aed,stroke:#c4b5fd,color:#faf5ff,stroke-width:2px;
+    classDef core fill:#0f766e,stroke:#5eead4,color:#f0fdfa,stroke-width:2px;
+    classDef analysis fill:#b45309,stroke:#fcd34d,color:#fffbeb,stroke-width:2px;
+    classDef output fill:#166534,stroke:#86efac,color:#f0fdf4,stroke-width:2px;
+```
+
+### Audit lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Developer
+    participant Surface as Streamlit / CLI
+    participant Parser as Normalizer
+    participant Counter as TokenCounter
+    participant Engine as Rules + Simulator
+    participant Report as AuditResult
+
+    Developer->>Surface: Submit source, prompt, and tool JSON
+    Surface->>Parser: Parse and validate provider-neutral inputs
+    Parser-->>Surface: CodeArtifact + PromptSpec
+    Surface->>Counter: Count messages, schemas, and source
+    Counter-->>Surface: Backend + token breakdown
+    Surface->>Engine: Analyze findings and simulate turns
+    Engine-->>Report: Costs, growth, findings, savings
+    Report-->>Surface: Render report card or JSON
+    Surface-->>Developer: Recommendations and CI artifact
 ```
 
 ### Responsibilities
@@ -40,8 +107,6 @@ The MVP is intentionally provider-neutral. It does not call an LLM, send uploade
 | --- | --- |
 | `app.py` | Polished local UI, upload/paste controls, friendly parse errors, sidebar assumptions, report-card rendering, and export. |
 | `audit_cli.py` | Shared `run_audit` adapter, serializable `AuditResult`, input-file handling, and the `agent-token-audit` entrypoint. |
-
-The root `audit_cli.py` is a source-checkout wrapper; the packaged implementation lives at `src/audit_cli.py` so the console script works with the `src/` layout.
 | `src/agent_token_optimizer/models.py` | Immutable validated domain objects for messages, tools, prices, simulation, and findings. |
 | `parsing.py` | Normalizes fenced/plain source, provider-shaped messages, text parts, and OpenAI-style or raw JSON tool schemas. |
 | `token_counting.py` | Uses local `tiktoken` if available; falls back to a deterministic UTF-8 estimate without network access. |
@@ -49,6 +114,10 @@ The root `audit_cli.py` is a source-checkout wrapper; the packaged implementatio
 | `code_rules.py` | Conservative Python AST and non-Python text checks for dynamic prompt/header values that can defeat prefix caching. |
 | `simulation.py` | Projects input growth and cost across repeated turns without contacting a model. |
 | `tests/` | Regression coverage for parsing, rules, token accounting, and simulation. |
+
+The root `audit_cli.py` is a source-checkout wrapper; the packaged
+implementation lives at `src/audit_cli.py` so the console script works with
+the `src/` layout.
 
 The core package is deliberately unchanged by the UI scaffold. New presentation and orchestration code depends only on its public API.
 
