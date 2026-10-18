@@ -28,9 +28,10 @@ def simulate_conversation(
     """Simulate repeated requests as history grows with responses and follow-ups.
 
     The initial normalized prompt is sent on every turn. After each non-final
-    turn, the next request also includes the assumed assistant response and a
-    fixed-size follow-up message. This makes the growth and cost assumptions
-    explicit and reproducible without calling a model.
+    turn, the next request also includes the assumed assistant response, a
+    fixed-size follow-up message, and the configured tool-call/result overhead.
+    Tool schemas are already part of the normalized prompt; the tool overhead
+    setting models the additional messages produced by a tool invocation.
     """
 
     if not isinstance(prompt, PromptSpec):
@@ -41,6 +42,9 @@ def simulate_conversation(
 
     initial_tokens = counter.count_prompt(prompt)
     current_input_tokens = initial_tokens
+    tool_overhead_tokens = config.tool_calls_per_turn * (
+        config.tool_result_tokens + config.tool_call_overhead_tokens
+    )
     turns: list[SimulationTurn] = []
     for turn_number in range(1, config.turns + 1):
         cost = estimate_cost(current_input_tokens, config.response_tokens, pricing)
@@ -50,10 +54,13 @@ def simulate_conversation(
                 input_tokens=current_input_tokens,
                 output_tokens=config.response_tokens,
                 cost=cost,
+                tool_overhead_tokens=tool_overhead_tokens,
             )
         )
         if turn_number < config.turns:
-            current_input_tokens += config.response_tokens + config.follow_up_tokens
+            current_input_tokens += (
+                config.response_tokens + config.follow_up_tokens + tool_overhead_tokens
+            )
 
     return SimulationResult(
         turns=tuple(turns),

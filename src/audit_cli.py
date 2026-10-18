@@ -148,6 +148,7 @@ class AuditResult:
                         "turn": turn.turn_number,
                         "input_tokens": turn.input_tokens,
                         "output_tokens": turn.output_tokens,
+                        "tool_overhead_tokens": turn.tool_overhead_tokens,
                         "total_tokens": turn.total_tokens,
                         "cost": turn.cost,
                     }
@@ -155,6 +156,12 @@ class AuditResult:
                 ],
                 "total_input_tokens": self.simulation.total_input_tokens,
                 "total_output_tokens": self.simulation.total_output_tokens,
+                "tool_overhead_tokens_per_turn": (
+                    self.simulation.turns[0].tool_overhead_tokens
+                    if self.simulation.turns
+                    else 0
+                ),
+                "total_tool_overhead_tokens": self.simulation.total_tool_overhead_tokens,
                 "total_tokens": self.simulation.total_tokens,
                 "total_cost": self.simulation.total_cost,
             },
@@ -278,6 +285,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turns", type=int, default=3)
     parser.add_argument("--response-tokens", type=int, default=256)
     parser.add_argument("--follow-up-tokens", type=int, default=32)
+    parser.add_argument("--tool-calls-per-turn", type=int, default=0)
+    parser.add_argument("--tool-result-tokens", type=int, default=0)
+    parser.add_argument("--tool-call-overhead-tokens", type=int, default=8)
     parser.add_argument("--verbose-message-tokens", type=int, default=200)
     parser.add_argument("--verbose-description-tokens", type=int, default=80)
     parser.add_argument("--bloated-tool-tokens", type=int, default=256)
@@ -299,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
                 turns=args.turns,
                 response_tokens=args.response_tokens,
                 follow_up_tokens=args.follow_up_tokens,
+                tool_calls_per_turn=args.tool_calls_per_turn,
+                tool_result_tokens=args.tool_result_tokens,
+                tool_call_overhead_tokens=args.tool_call_overhead_tokens,
             ),
             rule_config=RuleConfig(
                 verbose_message_tokens=args.verbose_message_tokens,

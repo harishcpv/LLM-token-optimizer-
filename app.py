@@ -142,6 +142,28 @@ def _render_sidebar() -> dict[str, Any]:
             value=32,
             step=8,
         )
+        tool_calls_per_turn = st.number_input(
+            "Tool calls per turn",
+            min_value=0,
+            max_value=50,
+            value=0,
+            step=1,
+            help="Additional tool invocations whose result messages are carried into the next turn.",
+        )
+        tool_result_tokens = st.number_input(
+            "Tool result tokens per call",
+            min_value=0,
+            max_value=8192,
+            value=0,
+            step=16,
+        )
+        tool_call_overhead_tokens = st.number_input(
+            "Tool call wrapper tokens",
+            min_value=0,
+            max_value=1024,
+            value=8,
+            step=1,
+        )
         with st.expander("Finding thresholds", expanded=False):
             verbose_message_tokens = st.number_input(
                 "Long message threshold",
@@ -174,6 +196,9 @@ def _render_sidebar() -> dict[str, Any]:
             turns=turns,
             response_tokens=response_tokens,
             follow_up_tokens=follow_up_tokens,
+            tool_calls_per_turn=tool_calls_per_turn,
+            tool_result_tokens=tool_result_tokens,
+            tool_call_overhead_tokens=tool_call_overhead_tokens,
         ),
         "rule_config": RuleConfig(
             verbose_message_tokens=verbose_message_tokens,
@@ -319,22 +344,28 @@ def _render_savings(result: AuditResult) -> None:
 
 def _render_simulation(result: AuditResult) -> None:
     st.markdown("### Multi-turn simulation")
-    st.caption("The baseline prompt is sent on every turn; each non-final turn adds the assumed response and follow-up tokens to history.")
+    st.caption("The baseline prompt is sent on every turn; each non-final turn adds the assumed response, follow-up, and configured tool-call overhead to history.")
     rows = [
         {
             "Turn": turn.turn_number,
             "Input tokens": turn.input_tokens,
             "Output tokens": turn.output_tokens,
+            "Next-turn tool overhead": turn.tool_overhead_tokens,
             "Total tokens": turn.total_tokens,
             "Estimated cost": _money(turn.cost),
         }
         for turn in result.simulation.turns
     ]
     st.dataframe(rows, hide_index=True, width="stretch")
-    total_columns = st.columns(3)
+    total_columns = st.columns(4)
     total_columns[0].metric("Simulated input", f"{result.simulation.total_input_tokens:,}")
     total_columns[1].metric("Simulated output", f"{result.simulation.total_output_tokens:,}")
-    total_columns[2].metric("Simulated spend", _money(result.simulation.total_cost))
+    total_columns[2].metric(
+        "Tool overhead / turn",
+        f"{result.simulation.turns[0].tool_overhead_tokens:,}" if result.simulation.turns else "0",
+        f"{result.simulation.total_tool_overhead_tokens:,} across turns",
+    )
+    total_columns[3].metric("Simulated spend", _money(result.simulation.total_cost))
 
 
 def _render_export(result: AuditResult) -> None:

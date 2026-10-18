@@ -100,8 +100,8 @@ be selected explicitly and versioned with the audit report.
 
 5. **Cost and savings**
    - Input and output prices are user-provided currency units per 1,000 tokens.
-   - A simulation repeats the baseline prompt and adds assumed response/follow-up history between turns.
-    - Built-in savings are rule estimates. Findings may overlap, so their sum is presented as an opportunity ceiling and should be validated after edits.
+   - A simulation repeats the baseline prompt and adds assumed response/follow-up history between turns. Optional tool-call count, wrapper, and result-token assumptions model additional tool messages carried into the next turn.
+   - Built-in savings are rule estimates. Findings may overlap, so their sum is presented as an opportunity ceiling and should be validated after edits.
 
 6. **Static optimization checks**
    - Tool schemas above the configured token threshold are reported with a schema-specific location and a non-overlapping threshold-based estimate.
@@ -172,6 +172,8 @@ agent-token-audit \
 ```
 
 The example paths above are illustrative; use your own UTF-8 files. Inline values are also accepted:
+
+For a workload with tool loops, add `--tool-calls-per-turn`, `--tool-result-tokens`, and `--tool-call-overhead-tokens` to make the extra context growth explicit.
 
 ```bash
 python audit_cli.py \

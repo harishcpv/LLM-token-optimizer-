@@ -148,9 +148,19 @@ class SimulationConfig:
     turns: int = 1
     response_tokens: int = 256
     follow_up_tokens: int = 32
+    tool_calls_per_turn: int = 0
+    tool_result_tokens: int = 0
+    tool_call_overhead_tokens: int = 8
 
     def __post_init__(self) -> None:
-        for field_name in ("turns", "response_tokens", "follow_up_tokens"):
+        for field_name in (
+            "turns",
+            "response_tokens",
+            "follow_up_tokens",
+            "tool_calls_per_turn",
+            "tool_result_tokens",
+            "tool_call_overhead_tokens",
+        ):
             value = getattr(self, field_name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 raise ValueError(f"{field_name} must be a non-negative integer")
@@ -166,6 +176,7 @@ class SimulationTurn:
     input_tokens: int
     output_tokens: int
     cost: float
+    tool_overhead_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -184,3 +195,9 @@ class SimulationResult:
     @property
     def total_tokens(self) -> int:
         return self.total_input_tokens + self.total_output_tokens
+
+    @property
+    def total_tool_overhead_tokens(self) -> int:
+        """Return tool-message tokens attributed to all simulated turns."""
+
+        return sum(turn.tool_overhead_tokens for turn in self.turns)

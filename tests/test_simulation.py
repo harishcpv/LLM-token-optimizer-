@@ -46,6 +46,34 @@ def test_predict_cost_matches_single_turn_simulation() -> None:
     assert predict_cost(prompt, 20, pricing, counter=counter) == pytest.approx(result.total_cost)
 
 
+def test_simulation_carries_tool_call_overhead_into_next_turn() -> None:
+    prompt = parse_prompt("Use the search tool.")
+    counter = TokenCounter(message_overhead=0)
+
+    result = simulate_conversation(
+        prompt,
+        SimulationConfig(
+            turns=3,
+            response_tokens=10,
+            follow_up_tokens=2,
+            tool_calls_per_turn=2,
+            tool_result_tokens=7,
+            tool_call_overhead_tokens=3,
+        ),
+        counter=counter,
+    )
+
+    overhead = 2 * (7 + 3)
+    base_tokens = counter.count_prompt(prompt)
+    assert [turn.tool_overhead_tokens for turn in result.turns] == [overhead] * 3
+    assert result.total_tool_overhead_tokens == overhead * 3
+    assert [turn.input_tokens for turn in result.turns] == [
+        base_tokens,
+        base_tokens + 10 + 2 + overhead,
+        base_tokens + 2 * (10 + 2 + overhead),
+    ]
+
+
 def test_simulation_config_rejects_zero_turns() -> None:
     with pytest.raises(ValueError, match="at least 1"):
         SimulationConfig(turns=0)
