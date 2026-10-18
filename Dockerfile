@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.2-slim-bullseye
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,12 +8,14 @@ WORKDIR /app
 
 # Install the exact application/test dependency set before copying source so
 # rebuilds can reuse the dependency layer.
-COPY requirements.lock pyproject.toml ./
-RUN python -m pip install --no-cache-dir -r requirements.lock
+COPY requirements.lock requirements-build.lock pyproject.toml ./
+RUN python -m pip install --no-cache-dir \
+    --requirement requirements-build.lock \
+    --requirement requirements.lock
 
 COPY src ./src
 COPY app.py audit_cli.py README.md ./
-RUN python -m pip install --no-cache-dir --no-deps .
+RUN python -m pip install --no-cache-dir --no-build-isolation --no-deps .
 
 EXPOSE 8501
 

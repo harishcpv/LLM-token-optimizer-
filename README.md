@@ -179,7 +179,7 @@ be selected explicitly and versioned with the audit report.
 
 ## Setup
 
-Python 3.11 is pinned in `.python-version`. The lock file contains the application and test dependency resolution.
+Python 3.11.2 is pinned in `.python-version`. Runtime dependencies and PEP 517 build dependencies are both checked into lockfiles.
 
 ### Reproducible local setup
 
@@ -187,11 +187,11 @@ Python 3.11 is pinned in `.python-version`. The lock file contains the applicati
 python3.11 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.lock
-python -m pip install --no-deps -e .
+python -m pip install -r requirements-build.lock -r requirements.lock
+python -m pip install --no-build-isolation --no-deps -e .
 ```
 
-On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1` instead. The `--no-deps -e .` step installs this local package and its CLI without re-resolving the locked dependencies.
+On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1` instead. The `--no-build-isolation --no-deps -e .` step installs this local package and its CLI without re-resolving the locked dependencies.
 
 For an actively developing environment where the lock is not required, this is equivalent:
 
@@ -199,10 +199,10 @@ For an actively developing environment where the lock is not required, this is e
 python -m pip install -e ".[app,test]"
 ```
 
-The optional `tiktoken` package is not required. If it is absent, the deterministic fallback is used and the selected backend is shown in the report. To enable the local `cl100k_base` backend explicitly, install the tokenizer extra in the project environment:
+The optional `tiktoken` package is not required. If it is absent, the deterministic fallback is used and the selected backend is shown in the report. To enable the local `cl100k_base` backend explicitly, install its pinned optional lock:
 
 ```bash
-python -m pip install -e ".[tokenizer]"
+python -m pip install -r requirements-tokenizer.lock
 ```
 
 ### Refreshing the lock
@@ -253,6 +253,33 @@ python audit_cli.py \
 
 Malformed JSON, conflicting inline/file flags, invalid prices, and invalid simulation settings return a non-zero CLI exit with an actionable parser message.
 
+## Buildathon demo
+
+The repository includes a deterministic before/after fixture under `examples/`.
+It intentionally demonstrates dynamic prompt prefixes, duplicated history,
+verbose instructions, and an oversized tool schema.
+
+Run the complete demo locally:
+
+```bash
+make demo
+```
+
+This writes the ignored `demo-report.json` artifact and prints the finding and
+prompt-token totals. To compare the compact version directly:
+
+```bash
+agent-token-audit \
+  --code-file examples/optimized_agent.py \
+  --prompt-file examples/optimized_prompt.json \
+  --tools-file examples/optimized_tools.json \
+  > optimized-report.json
+```
+
+The baseline should produce actionable findings and a materially larger prompt
+footprint than the optimized fixture. The same contract is exercised by
+`tests/test_examples.py` and the GitHub Actions workflow.
+
 ## Test and CI checks
 
 There is one project test command:
@@ -267,11 +294,11 @@ It runs an offline-safe bytecode syntax compilation followed by the existing pyt
 python -m compileall -q app.py audit_cli.py src tests
 ```
 
-A minimal CI job can therefore install from `requirements.lock`, install the local package with `--no-deps`, and run `make test`. The CLI can provide an additional deterministic JSON smoke artifact.
+A minimal CI job can therefore install from `requirements-build.lock` and `requirements.lock`, install the local package with `--no-build-isolation --no-deps`, run `make test`, and execute the checked-in demo fixture. The workflow is at `.github/workflows/test.yml`.
 
 ## Container deployment
 
-Build and run the Streamlit app with the pinned Python 3.11 base image and locked dependencies:
+Build and run the Streamlit app with the pinned Python 3.11.2 base image and locked dependencies:
 
 ```bash
 docker build -t agent-token-optimizer .
@@ -319,7 +346,29 @@ The Docker image runs `streamlit run app.py` on `0.0.0.0:8501`. No provider cred
 
 ## Known MVP gaps
 
-- Token totals are estimates unless the optional local `tiktoken` backend is installed and match the target provider's encoding.
+- Token totals are estimates unless the optional local `tiktoken` backend is installed and matches the target provider's encoding.
 - The code footprint is measured for visibility but is not inferred as a billable prompt unless represented in the prompt/tool input.
 - Savings findings are intentionally small and deterministic; they do not rewrite prompts or estimate quality/regression risk.
 - Pricing, caching, retries, latency, and provider-specific serialization policies are modeled only through the sidebar assumptions.
+
+## Buildathon submission checklist
+
+- [x] Pinned Python runtime and locked runtime/build/tokenizer dependencies
+- [x] Reproducible offline `make test` command
+- [x] Deterministic baseline and optimized demo fixtures
+- [x] Streamlit report card and CI-friendly JSON CLI
+- [x] GitHub Actions test and demo workflow
+- [x] Dockerfile and deployment instructions
+- [x] No provider credentials or uploaded source data in the repository
+
+Recommended final verification before presenting:
+
+```bash
+make test
+make demo
+streamlit run app.py
+```
+
+## License
+
+This project is released under the [MIT License](LICENSE).

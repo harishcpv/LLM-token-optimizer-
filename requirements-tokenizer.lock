@@ -1,0 +1,4 @@
+# Optional provider-neutral BPE tokenizer backend.
+# Install after requirements-build.lock and requirements.lock when desired.
+regex==2026.9.29
+tiktoken==0.14.0

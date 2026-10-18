@@ -1,0 +1,25 @@
+[
+  {
+    "name": "search_catalog",
+    "description": "Find catalog items matching the request and filters.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Product request in the customer's words."
+        },
+        "color": {
+          "type": "string",
+          "description": "Preferred color."
+        },
+        "max_price": {
+          "type": "number",
+          "description": "Inclusive maximum price."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }
+  }
+]

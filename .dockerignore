@@ -9,6 +9,7 @@ __pycache__
 .streamlit
 .env
 *.log
+demo-report.json
 dist
 build
 *.egg-info
